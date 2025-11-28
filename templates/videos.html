@@ -22,11 +22,11 @@
    
 <div class="row" style="justify-content:center; width:100%; margin-bottom:5%">
 <div class="column" style="float:left; width:50%; text-align:center;">
-  <img width="270" height="240" src="{% static 'emoji.png' %}" alt="My image" style="border-radius:20px;">
+  <img width="270" height="240" src="{% static media.img %}" alt="My image" style="border-radius:20px;">
 </div>
 <div class="column" style="float:left; width:50%; text-align:center;">
   <video width="320" height="240" autoplay muted loop style="border-radius:20px;">
-    <source src="{% static 'video.mp4' %}" type="video/mp4">
+    <source src="{% static media.video %}" type="video/mp4">
   </video>
 </div>
 </div>
@@ -51,4 +51,5 @@
         {% endfor %}
     </ul>
   </body>
+
 </html>
