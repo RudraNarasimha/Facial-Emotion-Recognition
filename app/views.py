@@ -8,33 +8,33 @@ from keras.models import load_model
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
 from django.conf import settings
-from googleapiclient.discovery import build
-import gdown  # Make sure gdown is in requirements.txt
 
 # -------------------------------
-# Paths and download setup
+# Load resources once
 faceCascade = cv2.CascadeClassifier("app/haarcascade_frontalface_default.xml")
+mood_music = pd.read_csv("app/musicData.csv")
 
+# Lazy-load model
 MODEL_PATH = "app/face_emotion.h5"
 GDRIVE_FILE_ID = "1BHYWzYlxnLEMviQ6jV-6bJYsMNvYWHST"
 DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_FILE_ID}"
 
-# Download the model if it doesn't exist
-if not os.path.exists(MODEL_PATH):
-    try:
-        print("Downloading face_emotion.h5 from Google Drive...")
-        gdown.download(DOWNLOAD_URL, MODEL_PATH, quiet=False)
-        print("Download complete.")
-    except Exception as e:
-        print("Failed to download model:", e)
+emotion_model = None
 
-# Load resources
-emotion_model = load_model(MODEL_PATH)
-mood_music = pd.read_csv("app/musicData.csv")
+def get_emotion_model():
+    global emotion_model
+    if emotion_model is None:
+        if not os.path.exists(MODEL_PATH):
+            import gdown
+            print("Downloading face_emotion.h5 from Google Drive...")
+            gdown.download(DOWNLOAD_URL, MODEL_PATH, quiet=False)
+            print("Download complete.")
+        # compile=False saves memory
+        emotion_model = load_model(MODEL_PATH, compile=False)
+    return emotion_model
 
+# -------------------------------
 emotion_dict = {
     0: "Angry",
     1: "Disgusted",
@@ -89,16 +89,20 @@ def capture_upload(request):
     global result
     if request.method == 'POST' and request.POST.get('image'):
         try:
+            # Convert base64 image to OpenCV image
             data_url = request.POST['image']
             format, imgstr = data_url.split(';base64,')
             img_data = base64.b64decode(imgstr)
             nparr = np.frombuffer(img_data, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
 
+            # Preprocess for model
             img_resized = cv2.resize(img, (48,48))
             img_array = img_resized.reshape(1,48,48,1)
 
-            predict_x = emotion_model.predict(img_array)
+            # Predict emotion
+            model = get_emotion_model()
+            predict_x = model.predict(img_array)
             result = np.argmax(predict_x, axis=1)
             label = emotion_dict[result[0]]
 
@@ -145,6 +149,7 @@ def songs(request):
 # -------------------------------
 # YouTube search
 def youtube_search(label):
+    from googleapiclient.discovery import build
     youtube = build('youtube', 'v3', developerKey=settings.YOUTUBE_API_KEY)
     request_yt = youtube.search().list(
         q=f'Telugu video songs {label}',
@@ -162,6 +167,7 @@ def search_videos(request):
     if result is None:
         return redirect('getstart')
     try:
+        # Copy emotion video to static
         src = os.path.join('app/videos', video_dist[result[0]])
         dst = 'static/video.mp4'
         shutil.copyfile(src, dst)
