@@ -2,6 +2,7 @@ import os
 import shutil
 import base64
 import cv2
+import gdown
 import numpy as np
 import pandas as pd
 from keras.models import load_model
@@ -16,7 +17,18 @@ from googleapiclient.discovery import build
 # -------------------------------
 # Load resources once
 faceCascade = cv2.CascadeClassifier("app/haarcascade_frontalface_default.xml")
-emotion_model = load_model("app/face_emotion.h5")
+emotion_model = load_model("app/face_emotion.h5")MODEL_PATH = "app/face_emotion.h5"
+GDRIVE_FILE_ID = "1BHYWzYlxnLEMviQ6jV-6bJYsMNvYWHST"
+DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_FILE_ID}"
+
+# Download the model if it doesn't exist
+if not os.path.exists(MODEL_PATH):
+    print("Downloading face_emotion.h5 from Google Drive...")
+    gdown.download(DOWNLOAD_URL, MODEL_PATH, quiet=False)
+    print("Download complete.")
+
+# Load the model
+emotion_model = load_model(MODEL_PATH)
 mood_music = pd.read_csv("app/musicData.csv")
 
 emotion_dict = {
@@ -206,3 +218,4 @@ class HandleErrorsMiddleware:
     def process_exception(self, request, exception):
         print("Exception caught:", exception)
         return redirect('error_page')
+
