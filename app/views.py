@@ -2,7 +2,6 @@ import os
 import shutil
 import base64
 import cv2
-import gdown
 import numpy as np
 import pandas as pd
 from keras.models import load_model
@@ -13,21 +12,26 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.conf import settings
 from googleapiclient.discovery import build
+import gdown  # Make sure gdown is in requirements.txt
 
 # -------------------------------
-# Load resources once
+# Paths and download setup
 faceCascade = cv2.CascadeClassifier("app/haarcascade_frontalface_default.xml")
-emotion_model = load_model("app/face_emotion.h5")MODEL_PATH = "app/face_emotion.h5"
+
+MODEL_PATH = "app/face_emotion.h5"
 GDRIVE_FILE_ID = "1BHYWzYlxnLEMviQ6jV-6bJYsMNvYWHST"
 DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_FILE_ID}"
 
 # Download the model if it doesn't exist
 if not os.path.exists(MODEL_PATH):
-    print("Downloading face_emotion.h5 from Google Drive...")
-    gdown.download(DOWNLOAD_URL, MODEL_PATH, quiet=False)
-    print("Download complete.")
+    try:
+        print("Downloading face_emotion.h5 from Google Drive...")
+        gdown.download(DOWNLOAD_URL, MODEL_PATH, quiet=False)
+        print("Download complete.")
+    except Exception as e:
+        print("Failed to download model:", e)
 
-# Load the model
+# Load resources
 emotion_model = load_model(MODEL_PATH)
 mood_music = pd.read_csv("app/musicData.csv")
 
@@ -85,24 +89,20 @@ def capture_upload(request):
     global result
     if request.method == 'POST' and request.POST.get('image'):
         try:
-            # Convert base64 image to OpenCV image
             data_url = request.POST['image']
             format, imgstr = data_url.split(';base64,')
             img_data = base64.b64decode(imgstr)
             nparr = np.frombuffer(img_data, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
 
-            # Preprocess for model
             img_resized = cv2.resize(img, (48,48))
             img_array = img_resized.reshape(1,48,48,1)
 
-            # Predict emotion
             predict_x = emotion_model.predict(img_array)
             result = np.argmax(predict_x, axis=1)
             label = emotion_dict[result[0]]
 
             emoji_path = emoji_dist[result[0]]
-            # Copy emoji to static for browser access
             shutil.copy(emoji_path, 'static/emoji.png')
 
             return render(request, 'capture.html', {
@@ -162,7 +162,6 @@ def search_videos(request):
     if result is None:
         return redirect('getstart')
     try:
-        # Copy emotion video to static
         src = os.path.join('app/videos', video_dist[result[0]])
         dst = 'static/video.mp4'
         shutil.copyfile(src, dst)
@@ -218,4 +217,3 @@ class HandleErrorsMiddleware:
     def process_exception(self, request, exception):
         print("Exception caught:", exception)
         return redirect('error_page')
-
